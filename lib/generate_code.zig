@@ -250,7 +250,11 @@ fn ziggifyType(allocator: std.mem.Allocator, name: []const u8, t: []const u8, fu
 
     const base = ZIGGIFY.get(t_) orelse t_;
 
-    const error_ = if (HAS_ERROR.get(name) != null) "RaylibError!" else "";
+    const error_ = if (HAS_ERROR.get(name) != null)
+        try allocPrint(allocator, "error{{{s}}}!", .{name})
+    else
+        try allocator.dupe(u8, "");
+    defer allocator.free(error_);
 
     return try concat(allocator, u8, &.{ error_, pre, base });
 }
@@ -278,7 +282,7 @@ test "ziggify type" {
 
     const string_raylib_error = try ziggifyType(allocator, "LoadFileData", "[*c]u8", "LoadFileData");
     defer allocator.free(string_raylib_error);
-    try expectEqualStrings("RaylibError![]u8", string_raylib_error);
+    try expectEqualStrings("error{LoadFileData}![]u8", string_raylib_error);
 
     const string_type_not_classified = ziggifyType(allocator, "LoadFileData", "[*c]float", "LoadFileData");
     try expectError(error.TypeNotClassified, string_type_not_classified);
@@ -388,7 +392,7 @@ test "make return cast" {
     const expectEqualStrings = std.testing.expectEqualStrings;
     const expectError = std.testing.expectError;
 
-    const list_of_string = try makeReturnCast(allocator, "TextSplit", "[*c][*c]u8", "RaylibError![][:0]u8", "_ptr");
+    const list_of_string = try makeReturnCast(allocator, "TextSplit", "[*c][*c]u8", "error{TextSplit}![][:0]u8", "_ptr");
     defer allocator.free(list_of_string);
     try expectEqualStrings("@as([*][:0]u8, @ptrCast(_ptr))[0..@as(usize, @intCast(_len))]", list_of_string);
 
@@ -1056,7 +1060,7 @@ fn parseHeader(
         if (TRIVIAL_SIZE.get(func_name) != null) {
             const func_prelude_ = try allocPrint(
                 allocator,
-                "const _ptr = {s};\n    if (_ptr == 0) return RaylibError.{s};\n    ",
+                "const _ptr = {s};\n    if (_ptr == 0) return error.{s};\n    ",
                 .{ inner, func_name },
             );
             defer allocator.free(func_prelude_);
